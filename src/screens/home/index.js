@@ -1,13 +1,14 @@
 // screens/HomePage.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
 import * as Location from 'expo-location';
 import axios from 'axios';
-import AppColor from '../utils/AppCollor';
+import AppColor from '../../utils/AppCollor';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getNextPrayer } from '../utils/nextPrayerTime';
+import { getNextPrayer } from '../../utils/nextPrayerTime';
+import { requestNotificationPermission, schedulePrayerNotifications } from '../settingNotification';
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
     const [location, setLocation] = useState(null);
     const [prayerTimes, setPrayerTimes] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -17,6 +18,12 @@ export default function HomeScreen() {
     useEffect(() => {
         const fetchLocationAndPrayerTimes = async () => {
             try {
+                const hasPermission = await requestNotificationPermission();
+                if (!hasPermission) {
+                    setErrorMsg('Notification permissions not granted');
+                    setLoading(false);
+                    return;
+                }
                 let storedLocation = await AsyncStorage.getItem('userLocation');
                 if (storedLocation) {
                     storedLocation = JSON.parse(storedLocation);
@@ -45,9 +52,12 @@ export default function HomeScreen() {
 
         const fetchPrayerTimes = async (location) => {
             try {
-                const response = await axios.get(`http://api.aladhan.com/v1/timings?latitude=${location.latitude}&longitude=${location.longitude}&method=2`);
+                const method = await AsyncStorage.getItem('calculationMethod') || '2';
+                const school = await AsyncStorage.getItem('asrSchool') || 'Shafi';
+                const response = await axios.get(`http://api.aladhan.com/v1/timings?latitude=${location.latitude}&longitude=${location.longitude}&method=${method}&school=${school === 'Hanafi' ? 1 : 0}`);
                 setPrayerTimes(response.data.data.timings);
                 setNextPrayer(getNextPrayer(response.data.data.timings));
+                await schedulePrayerNotifications(response.data.data.timings);
                 setLoading(false);
             } catch (error) {
                 console.error(error);
@@ -93,7 +103,9 @@ export default function HomeScreen() {
                     )}
                 />
             )}
-
+            <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Settings')}>
+                <Text style={styles.buttonText}>Go to setting</Text>
+            </TouchableOpacity>
         </View>
     );
 };
@@ -103,7 +115,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-
+        backgroundColor: AppColor.colorPrimary,
     },
     loadingContainer: {
         flex: 1,
@@ -111,24 +123,27 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     title: {
+        marginTop: 20,
         fontSize: 28,
         fontWeight: 'bold',
         marginBottom: 20,
+        color: AppColor.colorSecondary
     },
     prayerTimeContainer: {
         borderRadius: 10,
         paddingHorizontal: 5,
         alignSelf: "center",
-        backgroundColor: AppColor.colorPrimary,
+        backgroundColor: AppColor.colorAccent,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        width: '80%',
+        width: '82%',
         padding: 10,
-        borderBottomWidth: 1,
+        borderBottomWidth: 2,
 
         borderBottomColor: '#ccc',
     },
     prayerName: {
+
         fontSize: 18,
         color: 'white',
         paddingHorizontal: 5,
@@ -146,7 +161,20 @@ const styles = StyleSheet.create({
         color: AppColor.colorPrimary
     },
     highlight: {
-        backgroundColor: '#DAB351',
+        backgroundColor: '#4CAF50',
+    },
+    button: {
+
+        backgroundColor: '#4CAF50',
+        paddingVertical: 15,
+        paddingHorizontal: 30,
+        borderRadius: 10,
+        marginBottom: 20
+    },
+    buttonText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
     },
 });
 
