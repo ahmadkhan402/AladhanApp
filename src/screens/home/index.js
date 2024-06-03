@@ -7,6 +7,7 @@ import AppColor from '../../utils/AppCollor';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getNextPrayer } from '../../utils/nextPrayerTime';
 import { requestNotificationPermission, schedulePrayerNotifications } from '../settingNotification';
+import { useIsFocused } from '@react-navigation/native';
 
 export default function HomeScreen({ navigation }) {
     const [location, setLocation] = useState(null);
@@ -15,6 +16,7 @@ export default function HomeScreen({ navigation }) {
     const [errorMsg, setErrorMsg] = useState(null);
     const [nextPrayer, setNextPrayer] = useState(null);
 
+    const isFocus = useIsFocused()
     useEffect(() => {
         const fetchLocationAndPrayerTimes = async () => {
             try {
@@ -54,6 +56,7 @@ export default function HomeScreen({ navigation }) {
             try {
                 const method = await AsyncStorage.getItem('calculationMethod') || '2';
                 const school = await AsyncStorage.getItem('asrSchool') || 'Shafi';
+                console.log("Check the change  ", method, school);
                 const response = await axios.get(`http://api.aladhan.com/v1/timings?latitude=${location.latitude}&longitude=${location.longitude}&method=${method}&school=${school === 'Hanafi' ? 1 : 0}`);
                 setPrayerTimes(response.data.data.timings);
                 setNextPrayer(getNextPrayer(response.data.data.timings));
@@ -65,8 +68,10 @@ export default function HomeScreen({ navigation }) {
             }
         };
 
-        fetchLocationAndPrayerTimes();
-    }, []);
+        if (isFocus) {
+            fetchLocationAndPrayerTimes();
+        }
+    }, [isFocus]);
 
     if (loading) {
         return (
